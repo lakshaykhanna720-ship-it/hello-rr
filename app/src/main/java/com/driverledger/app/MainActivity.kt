@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.driverledger.app
 
 import android.Manifest
@@ -24,11 +26,16 @@ class MainActivity : ComponentActivity() {
     private val viewModel: LedgerViewModel by viewModels()
 
     private val requestNotifPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op either way */ }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        tts = TextToSpeech(this) { if (it == TextToSpeech.SUCCESS) tts.language = Locale("en", "IN") }
+
+        tts = TextToSpeech(this) {
+            if (it == TextToSpeech.SUCCESS) {
+                tts.language = Locale("en", "IN")
+            }
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -49,7 +56,14 @@ class MainActivity : ComponentActivity() {
                     onEnableDetection = {
                         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     },
-                    onSpeakTest = { tts.speak("This is a test announcement.", TextToSpeech.QUEUE_FLUSH, null, "test") },
+                    onSpeakTest = {
+                        tts.speak(
+                            "This is a test announcement.",
+                            TextToSpeech.QUEUE_FLUSH,
+                            null,
+                            "test"
+                        )
+                    },
                     onAddPayment = { viewModel.addPayment(it) },
                     onAddExpense = { viewModel.addExpense(it) }
                 )
@@ -77,56 +91,116 @@ fun DriverLedgerScreen(
     var driving by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var showExpense by remember { mutableStateOf(false) }
+
     val weekNet = weekIncome - weekExpense
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("🚕 Driver Ledger") }) }
+        topBar = {
+            TopAppBar(
+                title = { Text("🚕 Driver Ledger") }
+            )
+        }
     ) { pad ->
         LazyColumn(
-            modifier = Modifier.padding(pad).padding(16.dp),
+            modifier = Modifier
+                .padding(pad)
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 Card {
-                    Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("TODAY'S EARNINGS", style = MaterialTheme.typography.labelLarge)
-                        Text(formatRupees(todayTotal), style = MaterialTheme.typography.displaySmall)
-                        Text("$todayCount payment${if (todayCount == 1) "" else "s"}")
+                    Column(
+                        Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "TODAY'S EARNINGS",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Text(
+                            formatRupees(todayTotal),
+                            style = MaterialTheme.typography.displaySmall
+                        )
+                        Text(
+                            "$todayCount payment${if (todayCount == 1) "" else "s"}"
+                        )
                     }
                 }
             }
+
             item {
                 Button(
                     onClick = { driving = !driving },
-                    modifier = Modifier.fillMaxWidth().height(64.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
                 ) {
-                    Text(if (driving) "🟢 DRIVING MODE ON" else "🚕 START DRIVING MODE")
+                    Text(
+                        if (driving) "🟢 DRIVING MODE ON"
+                        else "🚕 START DRIVING MODE"
+                    )
                 }
             }
+
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { showAdd = true }, modifier = Modifier.weight(1f)) { Text("+ PAYMENT") }
-                    OutlinedButton(onClick = { showExpense = true }, modifier = Modifier.weight(1f)) { Text("− EXPENSE") }
-                }
-            }
-            item {
-                Card {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("THIS WEEK", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Gross earnings       ${formatRupees(weekIncome)}")
-                        Text("Expenses              − ${formatRupees(weekExpense)}")
-                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                        Text("NET EARNINGS          ${formatRupees(weekNet)}", style = MaterialTheme.typography.titleLarge)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedButton(
+                        onClick = { showAdd = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("+ PAYMENT")
+                    }
+
+                    OutlinedButton(
+                        onClick = { showExpense = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("− EXPENSE")
                     }
                 }
             }
+
             item {
-                Text("QUICK ACTIONS", style = MaterialTheme.typography.titleMedium)
-                OutlinedButton(onClick = onEnableDetection, modifier = Modifier.fillMaxWidth()) {
+                Card {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            "THIS WEEK",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text("Gross earnings       ${formatRupees(weekIncome)}")
+                        Text("Expenses              − ${formatRupees(weekExpense)}")
+                        HorizontalDivider(
+                            Modifier.padding(vertical = 8.dp)
+                        )
+                        Text(
+                            "NET EARNINGS          ${formatRupees(weekNet)}",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                }
+            }
+
+            item {
+                Text(
+                    "QUICK ACTIONS",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                OutlinedButton(
+                    onClick = onEnableDetection,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("📲 Enable payment notification detection")
                 }
-                OutlinedButton(onClick = onSpeakTest, modifier = Modifier.fillMaxWidth()) {
+
+                OutlinedButton(
+                    onClick = onSpeakTest,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("🔊 Test voice announcement")
                 }
             }
@@ -134,13 +208,20 @@ fun DriverLedgerScreen(
     }
 
     if (showAdd) {
-        SimpleAmountDialog("Add payment", "Payment amount") { amount ->
+        SimpleAmountDialog(
+            "Add payment",
+            "Payment amount"
+        ) { amount ->
             amount?.let(onAddPayment)
             showAdd = false
         }
     }
+
     if (showExpense) {
-        SimpleAmountDialog("Add expense", "Expense amount") { amount ->
+        SimpleAmountDialog(
+            "Add expense",
+            "Expense amount"
+        ) { amount ->
             amount?.let(onAddExpense)
             showExpense = false
         }
@@ -153,9 +234,14 @@ private fun formatRupees(amount: Double): String {
 }
 
 @Composable
-private fun SimpleAmountDialog(title: String, label: String, onClose: (Double?) -> Unit) {
+private fun SimpleAmountDialog(
+    title: String,
+    label: String,
+    onClose: (Double?) -> Unit
+) {
     var amount by remember { mutableStateOf("") }
     val parsed = amount.toDoubleOrNull()
+
     AlertDialog(
         onDismissRequest = { onClose(null) },
         title = { Text(title) },
@@ -168,8 +254,19 @@ private fun SimpleAmountDialog(title: String, label: String, onClose: (Double?) 
             )
         },
         confirmButton = {
-            Button(onClick = { onClose(parsed) }, enabled = parsed != null && parsed > 0) { Text("Save") }
+            Button(
+                onClick = { onClose(parsed) },
+                enabled = parsed != null && parsed > 0
+            ) {
+                Text("Save")
+            }
         },
-        dismissButton = { TextButton(onClick = { onClose(null) }) { Text("Cancel") } }
+        dismissButton = {
+            TextButton(
+                onClick = { onClose(null) }
+            ) {
+                Text("Cancel")
+            }
+        }
     )
 }
