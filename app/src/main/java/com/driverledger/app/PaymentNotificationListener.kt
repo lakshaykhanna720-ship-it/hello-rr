@@ -39,9 +39,6 @@ class PaymentNotificationListener : NotificationListenerService() {
 
         val packageName = sbn.packageName.lowercase()
 
-        // Only listen to the four payment apps.
-        if (!isSupportedPaymentApp(packageName)) return
-
         val extras = sbn.notification.extras
 
         val title = extras
@@ -55,27 +52,36 @@ class PaymentNotificationListener : NotificationListenerService() {
             extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
         ).joinToString(" ")
 
-        if (!looksLikeIncomingPayment(text)) return
-
-        val amount = extractAmount(text) ?: return
-
+        /*
+         * First identify the payment app.
+         */
         val source = when {
             packageName.contains("paytm") -> "Paytm"
             packageName.contains("phonepe") -> "PhonePe"
             packageName.contains("famapp") -> "FamApp"
-            isGooglePay(packageName) -> "GPay"
+
+            /*
+             * Google Pay can use different package identifiers depending
+             * on the version/device. These cover the common identifiers.
+             */
+            packageName.contains("googlequicksearchbox") ||
+                    packageName.contains("googlepay") ||
+                    packageName.contains("gpay") ||
+                    packageName.contains("walletnfcrel") -> "GPay"
+
             else -> return
         }
 
+        /*
+         * Only process notifications that actually look like
+         * incoming payments.
+         */
+        if (!looksLikeIncomingPayment(text)) return
+
+        val amount = extractAmount(text) ?: return
+
         scope.launch {
 
-            /*
-             * Your existing repository already prevents the same
-             * amount/source from being inserted twice within 5 seconds.
-             *
-             * This is useful because payment apps can update/post
-             * the same notification more than once.
-             */
             val wasNew = repo.addAutoDetectedPaymentIfNew(
                 amount = amount,
                 source = source
@@ -83,6 +89,9 @@ class PaymentNotificationListener : NotificationListenerService() {
 
             if (wasNew) {
                 withContext(Dispatchers.Main) {
+
+                    if (tts == null) return@withContext
+
                     tts?.speak(
                         "Payment received. ${amount.toSpeechAmount()} rupees.",
                         TextToSpeech.QUEUE_FLUSH,
@@ -94,24 +103,13 @@ class PaymentNotificationListener : NotificationListenerService() {
         }
     }
 
-    private fun isSupportedPaymentApp(packageName: String): Boolean {
-        return packageName.contains("paytm") ||
-                packageName.contains("phonepe") ||
-                packageName.contains("famapp") ||
-                isGooglePay(packageName)
-    }
-
-    private fun isGooglePay(packageName: String): Boolean {
-        return packageName.contains("googlequicksearchbox") ||
-                packageName.contains("googlepay") ||
-                packageName.contains("gpay")
-    }
-
     private fun looksLikeIncomingPayment(text: String): Boolean {
 
         val s = text.lowercase().trim()
 
-        // Ignore obvious outgoing payments.
+        /*
+         * Ignore obvious outgoing payments.
+         */
         if (
             Regex(
                 """\b(?:you|i)\s+(?:sent|paid)\b""",
@@ -122,10 +120,10 @@ class PaymentNotificationListener : NotificationListenerService() {
         }
 
         /*
-         * Paytm / FamApp style:
+         * Paytm / FamApp:
          *
          * "Amit Khanna sent ₹100"
-         * "Rajni Kapoor sent 1 rupees"
+         * "Rajni Kapoor sent ₹1"
          */
         val personSentPayment = Regex(
             """.+?\bsent\s+(?:₹|rs\.?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(?:rupees|rs|inr)?\b""",
@@ -137,10 +135,10 @@ class PaymentNotificationListener : NotificationListenerService() {
         }
 
         /*
-         * Google Pay style:
+         * Google Pay:
          *
+         * "Lakshay Khanna paid you ₹1"
          * "Lakshay Khanna paid you 1 rupees"
-         * "Rahul paid you ₹100"
          */
         val personPaidYou = Regex(
             """.+?\bpaid\s+you\s+(?:₹|rs\.?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(?:rupees|rs|inr)?\b""",
@@ -152,7 +150,7 @@ class PaymentNotificationListener : NotificationListenerService() {
         }
 
         /*
-         * Other incoming wording used by payment apps.
+         * Generic incoming notification wording.
          */
         val incoming = listOf(
             "received",
@@ -188,10 +186,19 @@ class PaymentNotificationListener : NotificationListenerService() {
     private fun extractAmount(text: String): Double? {
 
         val patterns = listOf(
-            // ₹100 / Rs 100 / INR 100
+
+            /*
+             * ₹1
+             * ₹100
+             * ₹1.50
+             */
             """(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""",
 
-            // 100 rupees / 100 rs / 100 INR
+            /*
+             * 1 rupees
+             * 100 rupees
+             * 1 rs
+             */
             """([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:rupees|rs|inr)"""
         )
 
