@@ -86,40 +86,48 @@ class PaymentNotificationListener : NotificationListenerService() {
                 packageName.contains("sms")
     }
 
-    private fun looksLikeIncomingPayment(text: String): Boolean {
-        val s = text.lowercase()
+     private fun looksLikeIncomingPayment(text: String): Boolean {
+    val s = text.lowercase().trim()
 
-        val incoming = listOf(
-            "received",
-            "credited",
-            "credit of",
-            "credited with",
-            "money received",
-            "payment received",
-            "paid to you",
-            "deposit",
-            "deposited",
-            "a/c credited",
-            "account credited"
-        )
+    // Paytm: "<person> sent ₹100"
+    val personSentPayment = Regex(
+        """^.+?\s+sent\s+(?:₹|rs\.?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(?:rupees|rs|inr)?\s*$""",
+        RegexOption.IGNORE_CASE
+    )
 
-        val outgoing = listOf(
-            "debited",
-            "debit",
-            "sent",
-            "paid by you",
-            "you paid",
-            "payment to",
-            "withdrawn",
-            "withdrawal",
-            "recharge",
-            "bill payment"
-        )
+    if (personSentPayment.matches(s)) return true
 
-        return incoming.any { s.contains(it) } &&
-                outgoing.none { s.contains(it) }
-    }
+    val incoming = listOf(
+        "received",
+        "credited",
+        "credit of",
+        "credited with",
+        "money received",
+        "payment received",
+        "paid to you",
+        "deposit",
+        "deposited",
+        "a/c credited",
+        "account credited"
+    )
 
+    val outgoing = listOf(
+        "debited",
+        "debit",
+        "paid by you",
+        "you paid",
+        "payment to",
+        "withdrawn",
+        "withdrawal",
+        "recharge",
+        "bill payment",
+        "you sent"
+    )
+
+    return incoming.any { s.contains(it) } &&
+           outgoing.none { s.contains(it) }
+     }
+     
     private fun extractAmount(text: String): Double? {
         val patterns = listOf(
             """(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""",
