@@ -4,6 +4,9 @@ package com.driverledger.app
 
 import android.Manifest
 import android.content.Intent
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -59,24 +62,36 @@ class MainActivity : ComponentActivity() {
                         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     },
                     onSpeakTest = {
-                        lifecycleScope.launch {
-                            val amount = 100.0
-                            val source = "TEST"
-                            val repo = com.driverledger.app.data.TransactionRepository(
-                                com.driverledger.app.data.AppDatabase
-                                    .getInstance(applicationContext)
-                                    .transactionDao()
-                            )
-                            val wasNew = repo.addAutoDetectedPaymentIfNew(amount, source)
-                            if (wasNew) {
-                                tts.speak(
-                                    "Payment received. 100 rupees.",
-                                    TextToSpeech.QUEUE_FLUSH,
-                                    null,
-                                    "test_payment"
+                        val channelId = "payment_test"
+                        val notificationManager = getSystemService(NotificationManager::class.java)
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            notificationManager.createNotificationChannel(
+                                NotificationChannel(
+                                    channelId,
+                                    "Payment Test",
+                                    NotificationManager.IMPORTANCE_HIGH
                                 )
-                            }
+                            )
                         }
+
+                        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            android.app.Notification.Builder(this, channelId)
+                                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                                .setContentTitle("Bank SMS")
+                                .setContentText("Payment received ₹100. DRIVER_LEDGER_TEST_PAYMENT")
+                                .setAutoCancel(true)
+                                .build()
+                        } else {
+                            android.app.Notification.Builder(this)
+                                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                                .setContentTitle("Bank SMS")
+                                .setContentText("Payment received ₹100. DRIVER_LEDGER_TEST_PAYMENT")
+                                .setAutoCancel(true)
+                                .build()
+                        }
+
+                        notificationManager.notify(1001, notification)
                     },
                     onAddPayment = { viewModel.addPayment(it) },
                     onAddExpense = { viewModel.addExpense(it) }
@@ -215,7 +230,7 @@ fun DriverLedgerScreen(
                     onClick = onSpeakTest,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("🧪 TEST ₹100 PAYMENT")
+                    Text("🧪 TEST PAYMENT NOTIFICATION")
                 }
             }
         }
