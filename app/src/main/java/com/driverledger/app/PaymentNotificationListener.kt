@@ -36,7 +36,11 @@ class PaymentNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+
         val packageName = sbn.packageName.lowercase()
+
+        // Only listen to the four payment apps.
+        if (!isSupportedPaymentApp(packageName)) return
 
         val extras = sbn.notification.extras
 
@@ -51,21 +55,31 @@ class PaymentNotificationListener : NotificationListenerService() {
             extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
         ).joinToString(" ")
 
-        val isTest = text.contains("DRIVER_LEDGER_TEST_PAYMENT")
-
-        if (!isTest && !looksLikeIncomingPayment(text)) return
+        if (!looksLikeIncomingPayment(text)) return
 
         val amount = extractAmount(text) ?: return
 
         val source = when {
-            isTest -> "TEST notification"
             packageName.contains("paytm") -> "Paytm"
-            isSmsApp(packageName) -> "SMS"
-            else -> "Notification"
+            packageName.contains("phonepe") -> "PhonePe"
+            packageName.contains("famapp") -> "FamApp"
+            isGooglePay(packageName) -> "GPay"
+            else -> return
         }
 
         scope.launch {
-            val wasNew = repo.addAutoDetectedPaymentIfNew(amount, source)
+
+            /*
+             * Your existing repository already prevents the same
+             * amount/source from being inserted twice within 5 seconds.
+             *
+             * This is useful because payment apps can update/post
+             * the same notification more than once.
+             */
+            val wasNew = repo.addAutoDetectedPaymentIfNew(
+                amount = amount,
+                source = source
+            )
 
             if (wasNew) {
                 withContext(Dispatchers.Main) {
@@ -80,87 +94,63 @@ class PaymentNotificationListener : NotificationListenerService() {
         }
     }
 
-    private fun isSmsApp(packageName: String): Boolean {
-        return packageName.contains("messaging") ||
-                packageName.contains("mms") ||
-                packageName.contains("sms")
+    private fun isSupportedPaymentApp(packageName: String): Boolean {
+        return packageName.contains("paytm") ||
+                packageName.contains("phonepe") ||
+                packageName.contains("famapp") ||
+                isGooglePay(packageName)
     }
 
-     private fun looksLikeIncomingPayment(text: String): Boolean {
-    val s = text.lowercase().trim()
+    private fun isGooglePay(packageName: String): Boolean {
+        return packageName.contains("googlequicksearchbox") ||
+                packageName.contains("googlepay") ||
+                packageName.contains("gpay")
+    }
 
-    // Paytm: "<person> sent ₹100"
-    val personSentPayment = Regex(
-        """^.+?\s+sent\s+(?:₹|rs\.?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(?:rupees|rs|inr)?\s*$""",
-        RegexOption.IGNORE_CASE
-    )
+    private fun looksLikeIncomingPayment(text: String): Boolean {
 
-    if (personSentPayment.matches(s)) return true
+        val s = text.lowercase().trim()
 
-    val incoming = listOf(
-        "received",
-        "credited",
-        "credit of",
-        "credited with",
-        "money received",
-        "payment received",
-        "paid to you",
-        "deposit",
-        "deposited",
-        "a/c credited",
-        "account credited"
-    )
+        // Ignore obvious outgoing payments.
+        if (
+            Regex(
+                """\b(?:you|i)\s+(?:sent|paid)\b""",
+                RegexOption.IGNORE_CASE
+            ).containsMatchIn(s)
+        ) {
+            return false
+        }
 
-    val outgoing = listOf(
-        "debited",
-        "debit",
-        "paid by you",
-        "you paid",
-        "payment to",
-        "withdrawn",
-        "withdrawal",
-        "recharge",
-        "bill payment",
-        "you sent"
-    )
-
-    return incoming.any { s.contains(it) } &&
-           outgoing.none { s.contains(it) }
-     }
-     
-    private fun extractAmount(text: String): Double? {
-        val patterns = listOf(
-            """(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""",
-            """(?:rs|inr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""",
-            """([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:rupees|rs|inr)"""
+        /*
+         * Paytm / FamApp style:
+         *
+         * "Amit Khanna sent ₹100"
+         * "Rajni Kapoor sent 1 rupees"
+         */
+        val personSentPayment = Regex(
+            """.+?\bsent\s+(?:₹|rs\.?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(?:rupees|rs|inr)?\b""",
+            RegexOption.IGNORE_CASE
         )
 
-        for (pattern in patterns) {
-            val matcher = Pattern
-                .compile(pattern, Pattern.CASE_INSENSITIVE)
-                .matcher(text)
-
-            if (matcher.find()) {
-                return matcher.group(1)
-                    ?.replace(",", "")
-                    ?.toDoubleOrNull()
-            }
+        if (personSentPayment.containsMatchIn(s)) {
+            return true
         }
 
-        return null
-    }
+        /*
+         * Google Pay style:
+         *
+         * "Lakshay Khanna paid you 1 rupees"
+         * "Rahul paid you ₹100"
+         */
+        val personPaidYou = Regex(
+            """.+?\bpaid\s+you\s+(?:₹|rs\.?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(?:rupees|rs|inr)?\b""",
+            RegexOption.IGNORE_CASE
+        )
 
-    private fun Double.toSpeechAmount(): String =
-        if (this % 1.0 == 0.0) {
-            this.toInt().toString()
-        } else {
-            this.toString()
+        if (personPaidYou.containsMatchIn(s)) {
+            return true
         }
 
-    override fun onDestroy() {
-        scope.cancel()
-        tts?.shutdown()
-        tts = null
-        super.onDestroy()
-    }
-}
+        /*
+         * Other incoming wording used by payment apps.
+         */
