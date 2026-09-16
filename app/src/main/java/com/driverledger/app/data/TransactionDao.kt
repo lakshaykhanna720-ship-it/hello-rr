@@ -14,17 +14,32 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun getAll(): Flow<List<TransactionEntity>>
 
-    /**
-     * Notification listeners can fire more than once for the same underlying payment
-     * (e.g. the app updates the same notification). This checks whether we already
-     * logged an auto-detected transaction with the same amount/source very recently,
-     * so we don't double-count it.
-     */
     @Query(
         """
         SELECT COUNT(*) FROM transactions
-        WHERE amount = :amount AND source = :source AND timestamp >= :since
+        WHERE amount = :amount
+        AND LOWER(sender) = LOWER(:sender)
+        AND timestamp >= :since
+        AND type = 'INCOME'
         """
     )
-    suspend fun countSimilarSince(amount: Double, source: String, since: Long): Int
+    suspend fun countSimilarPaymentSince(
+        amount: Double,
+        sender: String,
+        since: Long
+    ): Int
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM transactions
+        WHERE amount = :amount
+        AND timestamp >= :since
+        AND type = 'INCOME'
+        AND source != 'Manual'
+        """
+    )
+    suspend fun countSimilarAmountSince(
+        amount: Double,
+        since: Long
+    ): Int
 }
