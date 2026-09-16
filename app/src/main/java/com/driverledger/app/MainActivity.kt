@@ -7,7 +7,6 @@ import android.content.Intent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
