@@ -154,3 +154,74 @@ class PaymentNotificationListener : NotificationListenerService() {
         /*
          * Other incoming wording used by payment apps.
          */
+        val incoming = listOf(
+            "received",
+            "credited",
+            "credit of",
+            "credited with",
+            "money received",
+            "payment received",
+            "paid to you",
+            "paid you",
+            "deposit",
+            "deposited",
+            "a/c credited",
+            "account credited"
+        )
+
+        val outgoing = listOf(
+            "debited",
+            "debit",
+            "paid by you",
+            "you paid",
+            "payment to",
+            "withdrawn",
+            "withdrawal",
+            "recharge",
+            "bill payment"
+        )
+
+        return incoming.any { s.contains(it) } &&
+                outgoing.none { s.contains(it) }
+    }
+
+    private fun extractAmount(text: String): Double? {
+
+        val patterns = listOf(
+            // ₹100 / Rs 100 / INR 100
+            """(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""",
+
+            // 100 rupees / 100 rs / 100 INR
+            """([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:rupees|rs|inr)"""
+        )
+
+        for (pattern in patterns) {
+
+            val matcher = Pattern
+                .compile(pattern, Pattern.CASE_INSENSITIVE)
+                .matcher(text)
+
+            if (matcher.find()) {
+                return matcher.group(1)
+                    ?.replace(",", "")
+                    ?.toDoubleOrNull()
+            }
+        }
+
+        return null
+    }
+
+    private fun Double.toSpeechAmount(): String =
+        if (this % 1.0 == 0.0) {
+            this.toInt().toString()
+        } else {
+            this.toString()
+        }
+
+    override fun onDestroy() {
+        scope.cancel()
+        tts?.shutdown()
+        tts = null
+        super.onDestroy()
+    }
+}
