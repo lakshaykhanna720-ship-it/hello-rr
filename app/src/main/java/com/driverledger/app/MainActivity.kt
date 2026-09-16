@@ -12,6 +12,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -57,12 +59,24 @@ class MainActivity : ComponentActivity() {
                         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     },
                     onSpeakTest = {
-                        tts.speak(
-                            "This is a test announcement.",
-                            TextToSpeech.QUEUE_FLUSH,
-                            null,
-                            "test"
-                        )
+                        lifecycleScope.launch {
+                            val amount = 100.0
+                            val source = "TEST"
+                            val repo = com.driverledger.app.data.TransactionRepository(
+                                com.driverledger.app.data.AppDatabase
+                                    .getInstance(applicationContext)
+                                    .transactionDao()
+                            )
+                            val wasNew = repo.addAutoDetectedPaymentIfNew(amount, source)
+                            if (wasNew) {
+                                tts.speak(
+                                    "Payment received. 100 rupees.",
+                                    TextToSpeech.QUEUE_FLUSH,
+                                    null,
+                                    "test_payment"
+                                )
+                            }
+                        }
                     },
                     onAddPayment = { viewModel.addPayment(it) },
                     onAddExpense = { viewModel.addExpense(it) }
@@ -201,7 +215,7 @@ fun DriverLedgerScreen(
                     onClick = onSpeakTest,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("🔊 Test voice announcement")
+                    Text("🧪 TEST ₹100 PAYMENT")
                 }
             }
         }
