@@ -10,7 +10,7 @@ data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val amount: Double,
     val type: TxnType,
-    /** Where this row came from: "Manual", "GPay auto", "PhonePe auto", "Paytm auto" */
     val source: String,
+    val sender: String = "",
     val timestamp: Long = System.currentTimeMillis()
 )
